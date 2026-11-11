@@ -1,3 +1,8 @@
+> **Fork note:** this is a personal fork that serves the loot data for
+> [TargetLootJournal](https://github.com/ScheKaa/TargetLootJournal), a small addon that puts a button
+> on your target showing what it drops. Everything else is upstream
+> [buildthehomelab/wow-mod-forever-journal](https://github.com/buildthehomelab/wow-mod-forever-journal).
+
 # Journal
 
 An [AzerothCore](https://www.azerothcore.org/) (WotLK 3.3.5a) module and addon that add a

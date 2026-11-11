@@ -4,10 +4,17 @@
 
 ![Interface Version](https://img.shields.io/badge/Interface-30300-blue)
 ![WoW Version](https://img.shields.io/badge/WoW-3.3.5a-orange)
-[![Version](https://img.shields.io/badge/Version-2.11.1-green)](https://github.com/EvilTactician/wow-mod-forever-journal)
+[![Version](https://img.shields.io/badge/Version-2.11.1-green)](https://github.com/ScheKaa/wow-mod-forever-journal)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 </div>
+
+> **Fork note:** this is a personal fork, of
+> [EvilTactician/wow-mod-forever-journal](https://github.com/EvilTactician/wow-mod-forever-journal)
+> (itself a fork of [buildthehomelab/wow-mod-forever-journal](https://github.com/buildthehomelab/wow-mod-forever-journal)).
+> It exists to serve the loot data for
+> [TargetLootJournal](https://github.com/ScheKaa/TargetLootJournal), a small addon that puts a button
+> on your target showing what it drops. Everything else is the upstream code.
 
 An [AzerothCore](https://www.azerothcore.org/) (WotLK 3.3.5a) module and addon that add a
 **retail-style journal** in one window, in the spirit of WoW Forever's, with a tab for each part:

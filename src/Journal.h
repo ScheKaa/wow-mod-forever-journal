@@ -300,6 +300,10 @@ namespace Journal
 
         // K:<req>:<item> -> KR, KD rows, KE: what a token turns into.
         void HandleTokens(Player* player, std::string const& req, std::vector<std::string_view> const& args);
+
+        // TL:<req>:<creature> -> TLR, TLD rows, TLE: what one kill of that creature drops, world
+        // drop tables included and flagged LOOT_SHARED rather than left out.
+        void HandleCreatureLoot(Player* player, std::string const& req, std::vector<std::string_view> const& args);
     }
 
     // ---- JournalAbilities.cpp: what a creature casts --------------------------------------------

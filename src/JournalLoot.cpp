@@ -25,6 +25,7 @@
  */
 
 #include "Journal.h"
+#include "CreatureData.h"
 #include "DBCStores.h"
 #include "DatabaseEnv.h"
 #include "QueryResult.h"
@@ -39,6 +40,7 @@
 #include <array>
 #include <cmath>
 #include <functional>
+#include <mutex>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -71,6 +73,10 @@ namespace Journal::Loot
 
         std::array<std::unordered_map<uint32, std::vector<Drop>>, STORE_COUNT> sDrops;
         std::vector<Drop> const sNone;
+
+        // Loot ids asked for at run time by the target window: world drop tables included, which
+        // the journal's own lists leave out.
+        std::unordered_map<uint32, std::vector<Drop>> sTargetLoot;
 
         constexpr std::size_t MAX_TOKEN_RESULTS = 40;
 
@@ -276,7 +282,8 @@ namespace Journal::Loot
             o.flags = (o.flags & flags & EVERY_PATH) | ((o.flags | flags) & ~EVERY_PATH);
         }
 
-        OddsMap Compute(Table const& table, uint32 condSource, uint32 lootId, uint32 depth, bool hardMode);
+        OddsMap Compute(Table const& table, uint32 condSource, uint32 lootId, uint32 depth, bool hardMode,
+            bool includeWorldDrops);
 
         // A table that is one group of zero-chance entries (most raid boss tables): repeated runs
         // never pick the same equippable item twice (LootGroupInvalidSelector), so n runs over k
@@ -292,17 +299,19 @@ namespace Journal::Loot
             return true;
         }
 
-        void AddReference(OddsMap& into, Row const& row, float p, uint32 depth, uint32 extraFlags, bool hardMode)
+        void AddReference(OddsMap& into, Row const& row, float p, uint32 depth, uint32 extraFlags, bool hardMode,
+            bool includeWorldDrops)
         {
             if (depth >= MAX_DEPTH || p <= 0.0f)
                 return;
             bool world = IsWorldDrop(row.reference);
-            if (world && !GetConfig().showWorldDrops)
+            if (world && !includeWorldDrops)
                 return;
             auto itr = sReference.find(row.reference);
             if (itr == sReference.end())
                 return;
-            OddsMap sub = Compute(itr->second, COND_REFERENCE_LOOT, row.reference, depth + 1, hardMode);
+            OddsMap sub = Compute(itr->second, COND_REFERENCE_LOOT, row.reference, depth + 1, hardMode,
+                includeWorldDrops);
             // The core runs the reference uint32(MaxCount * rate) times, which can be none.
             float n = std::floor(float(row.maxCount) * sWorld->getRate(RATE_DROP_ITEM_REFERENCED_AMOUNT));
             if (n < 1.0f)
@@ -335,7 +344,8 @@ namespace Journal::Loot
             return hardMode || (row.lootMode & LOOT_MODE_DEFAULT_BIT);
         }
 
-        OddsMap Compute(Table const& table, uint32 condSource, uint32 lootId, uint32 depth, bool hardMode)
+        OddsMap Compute(Table const& table, uint32 condSource, uint32 lootId, uint32 depth, bool hardMode,
+            bool includeWorldDrops)
         {
             OddsMap out;
             float const refRate = sWorld->getRate(RATE_DROP_ITEM_REFERENCED);
@@ -349,7 +359,7 @@ namespace Journal::Loot
                 if (row.reference)
                 {
                     float p = row.chance >= 100.0f ? 1.0f : row.chance * refRate / 100.0f;
-                    AddReference(out, row, p, depth, flags & LOOT_HARD_MODE, hardMode);
+                    AddReference(out, row, p, depth, flags & LOOT_HARD_MODE, hardMode, includeWorldDrops);
                 }
                 else
                 {
@@ -391,7 +401,7 @@ namespace Journal::Loot
                 {
                     uint32 flags = RowFlags(*row, condSource, lootId);
                     if (row->reference)
-                        AddReference(out, *row, p, depth, flags & LOOT_HARD_MODE, hardMode);
+                        AddReference(out, *row, p, depth, flags & LOOT_HARD_MODE, hardMode, includeWorldDrops);
                     else
                         Add(out, row->item, p, flags, row->minCount, row->maxCount);
                 }
@@ -400,9 +410,9 @@ namespace Journal::Loot
         }
 
         // Normal mode's odds, plus what only hard mode drops (flagged).
-        OddsMap ComputeBothModes(Table const& table, uint32 condSource, uint32 lootId)
+        OddsMap ComputeBothModes(Table const& table, uint32 condSource, uint32 lootId, bool includeWorldDrops)
         {
-            OddsMap normal = Compute(table, condSource, lootId, 0, false);
+            OddsMap normal = Compute(table, condSource, lootId, 0, false, includeWorldDrops);
             bool anyHard = false;
             std::function<bool(Table const&, uint32)> hasHard = [&](Table const& t, uint32 depth) -> bool
             {
@@ -424,7 +434,7 @@ namespace Journal::Loot
                 return normal;
             for (auto& [item, odds] : normal)
                 odds.flags &= ~uint32(LOOT_HARD_MODE);
-            OddsMap hard = Compute(table, condSource, lootId, 0, true);
+            OddsMap hard = Compute(table, condSource, lootId, 0, true, includeWorldDrops);
             for (auto const& [item, odds] : hard)
                 if (!normal.count(item))
                 {
@@ -473,6 +483,7 @@ namespace Journal::Loot
         sConditioned.clear();
         for (auto& drops : sDrops)
             drops.clear();
+        sTargetLoot.clear();
 
         ReadReferenceUsers();
         ReadConditions();
@@ -502,7 +513,8 @@ namespace Journal::Loot
         {
             uint32 extra = store == std::size_t(Store::GameObject) ? uint32(LOOT_CHEST) : 0u;
             for (auto const& [id, table] : sTables[store])
-                sDrops[store][id] = ToDrops(ComputeBothModes(table, STORE_CONDITIONS[store], id), extra);
+                sDrops[store][id] = ToDrops(ComputeBothModes(table, STORE_CONDITIONS[store], id,
+                    GetConfig().showWorldDrops), extra);
         }
 
         LOG_INFO("server.loading", ">> mod-forever-journal: {} creature, {} chest, {} container, {} fishing and {} pickpocket "
@@ -515,6 +527,51 @@ namespace Journal::Loot
         auto const& map = sDrops[std::size_t(store)];
         auto itr = map.find(lootId);
         return itr != map.end() ? itr->second : sNone;
+    }
+
+    namespace
+    {
+        // Reads the given reference tables and everything they reach, world drop tables included:
+        // the target window lists those apart from the creature's own drops instead of hiding them.
+        void ReadReferenceTree(std::vector<uint32> pending)
+        {
+            for (uint32 depth = 0; depth < MAX_DEPTH && !pending.empty(); ++depth)
+            {
+                std::vector<uint32> wanted;
+                for (uint32 ref : pending)
+                    if (!sReference.count(ref))
+                        wanted.push_back(ref);
+                std::sort(wanted.begin(), wanted.end());
+                wanted.erase(std::unique(wanted.begin(), wanted.end()), wanted.end());
+                if (wanted.empty())
+                    return;
+                for (uint32 ref : wanted)
+                    sReference[ref]; // known, even when empty
+                pending = ReadTable("reference_loot_template", wanted, sReference);
+            }
+        }
+    }
+
+    // One kill of a creature's loot id, the way the journal computes a boss table, but with the
+    // world drop references kept and flagged LOOT_SHARED. Read on request: a targeted creature's
+    // loot id need not be one the journal loaded at startup. The lock is for two players asking
+    // from different map threads at once.
+    std::vector<Drop> CreatureLoot(uint32 lootId)
+    {
+        static std::mutex lock;
+        std::lock_guard<std::mutex> guard(lock);
+
+        auto cached = sTargetLoot.find(lootId);
+        if (cached != sTargetLoot.end())
+            return cached->second;
+
+        auto& tables = sTables[std::size_t(Store::Creature)];
+        if (!tables.count(lootId))
+            ReadReferenceTree(ReadTable(STORE_TABLES[0], { lootId }, tables));
+
+        OddsMap odds = ComputeBothModes(tables[lootId], STORE_CONDITIONS[0], lootId, true);
+        sTargetLoot[lootId] = ToDrops(odds, 0);
+        return sTargetLoot[lootId];
     }
 
     bool IsWorldDropTable(uint32 reference)
@@ -627,6 +684,46 @@ namespace Journal::Loot
         Send(player, Acore::StringFormat("KR:{}:{}:{}", req, token, rows.size()));
         SendRows(player, "KD:" + req, rows);
         Send(player, "KE:" + req);
+    }
+
+    // TL:<req>:<creature entry> -> TLR, TLD rows, TLE: what one kill of that creature drops, its
+    // world drop tables included and flagged LOOT_SHARED so a client can list them apart. Sent to
+    // addons other than the Journal one: the codes are three letters, which its parser ignores.
+    void HandleCreatureLoot(Player* player, std::string const& req, std::vector<std::string_view> const& args)
+    {
+        uint32 entry = 0;
+        if (args.size() < 3 || !ParseUInt(args[2], entry))
+        {
+            SendError(player, req, "bad");
+            return;
+        }
+
+        CreatureTemplate const* proto = sObjectMgr->GetCreatureTemplate(entry);
+        if (!proto)
+        {
+            SendError(player, req, "bad");
+            return;
+        }
+
+        // An empty lootid falls back to the creature's own entry, as the core's loot lookup does.
+        uint32 lootId = proto->lootid ? proto->lootid : entry;
+        std::vector<Drop> drops = CreatureLoot(lootId);
+
+        std::vector<std::string> rows;
+        rows.reserve(drops.size());
+        for (Drop const& drop : drops)
+        {
+            ItemTemplate const* item = sObjectMgr->GetItemTemplate(drop.item);
+            if (!item)
+                continue;
+            rows.push_back(Acore::StringFormat("{},{},{},{},{},{},{},{},{},{},{},{},{},{}", drop.item,
+                uint32(std::lround(drop.chance * 100.0f)), drop.flags, drop.minCount, drop.maxCount,
+                item->Quality, item->Class, item->SubClass, item->InventoryType, item->ItemLevel,
+                item->RequiredLevel, Escape(item->Name1, 60), ClassesOf(drop.item, false), lootId));
+        }
+        Send(player, Acore::StringFormat("TLR:{}:{}:{}:{}", req, entry, lootId, rows.size()));
+        SendRows(player, "TLD:" + req, rows);
+        Send(player, "TLE:" + req);
     }
 
     uint32 Hash(uint32 seed)

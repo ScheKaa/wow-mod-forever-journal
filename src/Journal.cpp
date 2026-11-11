@@ -360,7 +360,8 @@ namespace Journal
             // Every heading, and the longest headings' quests.
             if (command == "G" || command == "Z")
                 return 4.0f;
-            if (command == "L" || command == "Q" || command == "F" || command == "K" || command == "X" || command == "N" || command == "Y" || command == "P")
+            if (command == "L" || command == "Q" || command == "F" || command == "K" || command == "X" || command == "N" || command == "Y" || command == "P"
+                || command == "TL")
                 return 2.0f;
             return 1.0f;
         }
@@ -505,6 +506,8 @@ namespace Journal
                 Index::HandleLoot(player, req, args);
             else if (command == "K")
                 Loot::HandleTokens(player, req, args);
+            else if (command == "TL")
+                Loot::HandleCreatureLoot(player, req, args);
             else if (command == "Q")
                 Index::HandleQuests(player, req, args);
             else if (command == "QD")

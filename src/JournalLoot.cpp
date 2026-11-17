@@ -566,8 +566,16 @@ namespace Journal::Loot
             return cached->second;
 
         auto& tables = sTables[std::size_t(Store::Creature)];
+        std::vector<uint32> pending;
         if (!tables.count(lootId))
-            ReadReferenceTree(ReadTable(STORE_TABLES[0], { lootId }, tables));
+            pending = ReadTable(STORE_TABLES[0], { lootId }, tables);
+        // A table the journal read at startup has no world drop references when
+        // Journal.Loot.ShowWorldDrops is off, so walk this one's references too, not only a new
+        // table's.
+        for (Row const& row : tables[lootId])
+            if (row.reference)
+                pending.push_back(row.reference);
+        ReadReferenceTree(pending);
 
         OddsMap odds = ComputeBothModes(tables[lootId], STORE_CONDITIONS[0], lootId, true);
         sTargetLoot[lootId] = ToDrops(odds, 0);
@@ -705,9 +713,13 @@ namespace Journal::Loot
             return;
         }
 
-        // An empty lootid falls back to the creature's own entry, as the core's loot lookup does.
-        uint32 lootId = proto->lootid ? proto->lootid : entry;
-        std::vector<Drop> drops = CreatureLoot(lootId);
+        // A creature with no loot id drops nothing: the core looks loot up by loot id alone, and a
+        // creature entry is not a fallback for one (the two share the same number range).
+        uint32 lootId = proto->lootid;
+
+        std::vector<Drop> drops;
+        if (lootId)
+            drops = CreatureLoot(lootId);
 
         std::vector<std::string> rows;
         rows.reserve(drops.size());

@@ -184,7 +184,7 @@ function page:Refresh()
 				if ra ~= rb then return ra < rb end
 			end
 			local la, lb = a.targetLevel or a.minLevel, b.targetLevel or b.minLevel
-			if a.raid then la, lb = J.InstanceLevels(a, tier), J.InstanceLevels(b, tier) end
+			if a.raid then la, lb = J.TierLevels(a, tier), J.TierLevels(b, tier) end
 			if la ~= lb then return la < lb end
 			return a.name < b.name
 		end)

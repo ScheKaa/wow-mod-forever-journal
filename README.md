@@ -1,10 +1,10 @@
-# Journal 2.11.1
+# Journal 2.13.1
 
 <div align="center">
 
 ![Interface Version](https://img.shields.io/badge/Interface-30300-blue)
 ![WoW Version](https://img.shields.io/badge/WoW-3.3.5a-orange)
-[![Version](https://img.shields.io/badge/Version-2.11.1-green)](https://github.com/ScheKaa/wow-mod-forever-journal)
+[![Version](https://img.shields.io/badge/Version-2.13.1-green)](https://github.com/ScheKaa/wow-mod-forever-journal)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 </div>
@@ -33,7 +33,10 @@ An [AzerothCore](https://www.azerothcore.org/) (WotLK 3.3.5a) module and addon t
   read in the world, to read again.
 - **Mounts**, **Pets** and **Toys**: everything there is to collect, what you already have, and
   where to get the rest: vendors and their prices, drops with their chances, quests,
-  achievements, professions, trainers, containers and fishing.
+  achievements, professions, trainers, containers and fishing. With
+  [mod-companion-auras](https://github.com/EvilTactician/mod-companion-auras) installed, the Pets tab
+  also shows each companion's **aura**, lets you **rename** your companions, and lists its very
+  rare world drops.
 - Tabs from other addons: [mod-beast-collection](https://github.com/buildthehomelab/wow-mod-beast-collection)'s
   hunter **Beasts** field guide and [mod-transmog-plus](https://github.com/buildthehomelab/wow-mod-transmog-plus)'s
   **Appearances** show up here when they're installed.
@@ -84,6 +87,10 @@ Category: Interface
 - On progression realms, mounts, pets and toys your stage hasn't opened yet carry a lock and the
   stage they open at.
 - The old DungeonJournal addon turns itself off the first time the Journal loads.
+- **2.13.0, with mod-companion-auras:** the Pets tab shows the aura each companion gives while
+  it's out (and "Rare" for a rare one's stronger aura), the names you give your companions (with
+  **Rename** and **Reset name**, and `.petname` followed live), and the companions it drops from
+  any creature as a very rare world drop you can set as a goal.
 
 ## What players get
 
@@ -236,6 +243,14 @@ in the Filter menu brings them back. On the right, the one you picked:
   [mod-pet-loot](https://github.com/buildthehomelab/wow-mod-pet-loot): tick it and that pet comes
   out on its own whenever you have none (after logging in, zoning, dying or a flight), the same as
   `.companion auto`;
+- for a pet, when the realm runs [mod-companion-auras](https://github.com/EvilTactician/mod-companion-auras):
+  the **aura** it gives while it's out (the aura's icon, name and what it does, "Rare" for a rare
+  companion's stronger one; hover for the spell's tooltip), and the **name** you gave it, in the
+  list and the title, with its normal name beside it in the line under the title. **Rename** (one
+  word, letters only, up to 12) and **Reset name** sit at the top of the model for pets you have;
+  `.petname` renames the one you have out and the journal follows. The search finds pets by either
+  name. Companions the module drops from any creature are listed as obtainable, as a very rare
+  world drop, and can be set as a goal (the tracker counts every kill);
 - for one you don't have, **Set as goal**: a small tracker stays on screen while you play with the
   first place to get it your progression has opened (who, where, the drop chance), and how close
   you are: coins against a shop price, gold against a vendor's, or the kills of a creature that
@@ -252,13 +267,14 @@ in the Filter menu brings them back. On the right, the one you picked:
 | Achievement | the achievement and what it asks | opens it in the achievement window |
 | Profession | the profession, the skill it takes, the recipe and the specialisation it needs | |
 | Trainer | the class's trainers (class mounts), level and cost | flag the nearest trainer of your faction |
-| World drop | drops from a shared world drop table | |
+| World drop | drops from a shared world drop table; with [mod-companion-auras](https://github.com/EvilTactician/mod-companion-auras), "World drop (very rare)": any creature can drop it, about 1 in 20,000 kills (the module's `CompanionAuras.WorldDrop.Chance`) | |
 | Coin Shop | the price in boss coins ([mod-boss-coins](https://github.com/buildthehomelab/wow-mod-boss-coins), bought in the launcher) and how many you have, wallet and bags | |
 | Black Market | the broker ([mod-black-market](https://github.com/buildthehomelab/wow-mod-black-market)), where, the starting bid, and when it's up for bid now, the current bid and the time left | flag the broker |
 | Guild Vendor | the guild vendors ([mod-guild-levels](https://github.com/buildthehomelab/wow-mod-guild-levels)), the guild level and guild reputation it takes, the price | flag the nearest guild vendor of your faction |
 
 Up to eight sources of each kind are listed, most likely or cheapest first; a last line counts the
-rest. Map flags go to the nearest spawn on your map. Sources nobody can reach are left out: vendors
+rest. A quest with a version per race or faction is one line: your faction's version, its giver and
+map flag. Map flags go to the nearest spawn on your map. Sources nobody can reach are left out: vendors
 and creatures that are never spawned or summoned, and quests nobody hands out or the realm has
 disabled.
 
@@ -481,6 +497,8 @@ can't find in the zone (`lore entry ...: no area "..." in zone ...`) and any ent
   does nothing without it.
 - [mod-individual-progression](https://github.com/ZhengPeiRu21/mod-individual-progression) is
   optional. With it the journal shows era locks and the 40 player Onyxia and Naxxramas tabs.
+- [mod-companion-auras](https://github.com/EvilTactician/mod-companion-auras) is optional. With it
+  the Pets tab shows companion auras, custom names and the module's world drops.
 - No client patch, except for the Town Guide spell (see [The Town Guide spell](#the-town-guide-spell)).
   [Portalkeeper](https://github.com/Hisha/Portalkeeper) is optional (`sql/portalkeeper_addon.sql`
   makes the addon required for players).
@@ -582,7 +600,7 @@ end
 ```
 
 `panel` fills the window's content area (about 870 by 530). `Journal.API` is the version of this
-interface (2). `Journal.IsTabShown(key)` tells whether the journal is open on a tab.
+interface (3). `Journal.IsTabShown(key)` tells whether the journal is open on a tab.
 
 From `Journal.API` 2, `Journal.OpenQuest(questId, done)` opens the Quests tab on a quest: its
 heading picked, the quest scrolled to, opened and marked, whatever the filters (one the character
@@ -597,6 +615,26 @@ if (Journal.API or 0) >= 2 and Journal.OpenQuest(questId, function (shown)
     if not shown then showStartOnMap() end   -- not in the Quests tab
 end) then return end
 showStartOnMap()                             -- the realm can't open quests
+```
+
+From `Journal.API` 3, `Journal.InstanceLevels(lfgId)` gives an instance's levels as the journal
+shows them (worked out from the realm's bosses, see the Dungeons tab), by the Dungeon Finder id of
+the instance or of one of its wings; `nil` while unknown (asking starts loading the list). One entry
+per expansion it has tabs in, oldest first (40 player Onyxia at 60, then the Wrath one at 80):
+
+```lua
+{ expansion = 0, raid = false, minLevel = 29, maxLevel = 45, best = "~32-40", players = 5,
+  wings = { { name = "Graveyard", minLevel = 29, maxLevel = 37, best = "~32" }, ... } }
+```
+
+`best` is `nil` for raids, which have one level (`minLevel == maxLevel`). `Journal.OnInstanceLevels(callback)`
+calls `callback()` each time the list is loaded or reloaded, so a map can redraw its pins:
+
+```lua
+if Journal and (Journal.API or 0) >= 3 then
+    Journal.OnInstanceLevels(RefreshEntrancePins)
+    local versions = Journal.InstanceLevels(lfgId)   -- nil: use your own levels for now
+end
 ```
 
 ## Commands

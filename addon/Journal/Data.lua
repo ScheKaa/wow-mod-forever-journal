@@ -87,6 +87,7 @@ function J.LoadInstances(done)
 	local cache = J.Cache()
 	if cache.list then
 		instances, instanceList = buildInstances(cache.list)
+		J.Fire("INSTANCES_LOADED")
 		done(instances, instanceList)
 		return
 	end
@@ -95,6 +96,7 @@ function J.LoadInstances(done)
 		if not rows then done(nil) return end
 		J.Cache().list = rows
 		instances, instanceList = buildInstances(rows)
+		J.Fire("INSTANCES_LOADED")
 		done(instances, instanceList)
 	end)
 end
@@ -103,15 +105,20 @@ function J.Instance(id)
 	return instances and instances[id]
 end
 
+-- Journal.InstanceLevels' index (below), rebuilt from the list on the next call.
+local levelsByLfg
+
 J.On("CACHE_RESET", function ()
 	instances, instanceList = nil, nil
+	levelsByLfg = nil
 end)
 
+-- (Journal.InstanceLevels is the public one, by Dungeon Finder id.)
 -- An instance's levels on a tier's tab: its own, or for a tab of another expansion (40 player
 -- Onyxia and Naxxramas with the classic raids) that expansion's top level, as its raids have. The
 -- best level is a dungeon's, "~32-40" across its wings when they differ.
 local TOP_LEVEL = { [0] = 60, [1] = 70, [2] = 80 }
-function J.InstanceLevels(inst, tier)
+function J.TierLevels(inst, tier)
 	if tier and inst.expansion ~= tier and TOP_LEVEL[tier] then
 		return TOP_LEVEL[tier], TOP_LEVEL[tier], nil
 	end
@@ -123,9 +130,70 @@ function J.InstanceLevels(inst, tier)
 	return inst.minLevel, inst.maxLevel, lo == hi and ("~" .. lo) or ("~" .. lo .. "-" .. hi)
 end
 
+-- For other addons (Journal.API 3): an instance's levels as the journal shows them, by the
+-- Dungeon Finder id of the instance or of one of its wings, nil while unknown (asking starts
+-- loading the list). One entry per expansion it has tabs in (40 player Onyxia at 60, the Wrath one
+-- at 80), oldest first: { expansion, raid, minLevel, maxLevel, best ("~31", "~32-40", nil for
+-- raids), players (its largest tab), wings = { { name, minLevel, maxLevel, best } } }.
+-- Journal.OnInstanceLevels(callback) calls back each time the list is loaded or reloaded.
+local levelCallbacks = {}
+
+local function indexLevels()
+	levelsByLfg = {}
+	for _, inst in ipairs(instanceList or {}) do
+		local players = {}
+		for _, v in ipairs(inst.variants) do
+			local e = v.expansion or inst.expansion
+			players[e] = math.max(players[e] or 0, tonumber(v.players) or 0)
+		end
+		players[inst.expansion] = players[inst.expansion] or 0
+		local wings = {}
+		for _, w in ipairs(inst.wings) do
+			table.insert(wings, { name = w.name, minLevel = w.minLevel, maxLevel = w.maxLevel,
+				best = (w.targetLevel or 0) > 0 and ("~" .. w.targetLevel) or nil })
+		end
+		local versions = {}
+		for e, size in pairs(players) do
+			local minLevel, maxLevel, best = J.TierLevels(inst, e ~= inst.expansion and e or nil)
+			table.insert(versions, { expansion = e, raid = inst.raid, minLevel = minLevel, maxLevel = maxLevel,
+				best = best, players = size > 0 and size or nil, wings = e == inst.expansion and wings or {} })
+		end
+		table.sort(versions, function (a, b) return a.expansion < b.expansion end)
+		if (tonumber(inst.lfgId) or 0) > 0 then levelsByLfg[inst.lfgId] = versions end
+		for _, w in ipairs(inst.wings) do
+			if (tonumber(w.lfgId) or 0) > 0 then levelsByLfg[w.lfgId] = versions end
+		end
+	end
+end
+
+function Journal.InstanceLevels(lfgId)
+	lfgId = tonumber(lfgId)
+	if not lfgId then return nil end
+	if not instances then
+		if J.serverReady then J.LoadInstances(function () end) end
+		return nil
+	end
+	if not levelsByLfg then indexLevels() end
+	return levelsByLfg[lfgId]
+end
+
+function Journal.OnInstanceLevels(callback)
+	if type(callback) == "function" then table.insert(levelCallbacks, callback) end
+end
+
+J.On("INSTANCES_LOADED", function ()
+	levelsByLfg = nil
+	for _, callback in ipairs(levelCallbacks) do pcall(callback) end
+end)
+
+-- Another addon asked before the realm answered: load the list once it's there.
+J.On("READY", function ()
+	if #levelCallbacks > 0 and not instances then J.LoadInstances(function () end) end
+end)
+
 -- "Level 29-45, best ~32-40"
 function J.LevelText(inst, tier)
-	local minLevel, maxLevel, best = J.InstanceLevels(inst, tier)
+	local minLevel, maxLevel, best = J.TierLevels(inst, tier)
 	local text = minLevel == maxLevel and ("Level " .. minLevel) or ("Level " .. minLevel .. "-" .. maxLevel)
 	if best then text = text .. ", best " .. best end
 	return text

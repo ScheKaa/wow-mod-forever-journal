@@ -427,9 +427,10 @@ end
 --   })
 --
 -- panel fills the window's content area. Journal.API tells registrants which version of this
--- interface they talk to: 2 adds Journal.OpenQuest (QuestTab.lua).
+-- interface they talk to: 2 adds Journal.OpenQuest (QuestTab.lua), 3 Journal.InstanceLevels and
+-- Journal.OnInstanceLevels (Data.lua).
 
-Journal.API = 2
+Journal.API = 3
 
 local sections, ordered = {}, {}
 local tabCount = 0

@@ -12,7 +12,8 @@
  *      items, gold only when the core asks for it; vendors only spawned by a world event say so)
  *   D  creature drops, G chests, P pickpocketing, F fishing, I containers, with the chance per
  *      kill, chest, pocket, cast or container worked out like the dungeon journal's loot. Drops of
- *      a dungeon journal boss link to it. R: only through a world drop table.
+ *      a dungeon journal boss link to it. R: only through a world drop table, or mod-companion-auras'
+ *      world drops (companions nothing else gives, from any creature, 1 in <chance> kills).
  *   Q  quest rewards (items, choices, reward spells), with who starts the quest
  *   A  achievement rewards (achievement_reward)
  *   C  crafted: a profession spell creates the item
@@ -57,7 +58,7 @@
  *   P,<i>,<creature>,<chance x100>,<era>,<placed>,<name>,<where>,<base>
  *   F,<i>,<area>,<chance x100>,<era>,<zone>
  *   I,<i>,<container item>,<chance x100>
- *   R,<i>
+ *   R,<i>,<1 in this many kills: mod-companion-auras' world drop, 0 a world drop table>
  *   Q,<i>,<quest>,<level>,<era>,<placed>,<faction 0/1 Alliance/2 Horde>,<title>,<giver>,<where>
  *   A,<i>,<achievement>
  *   C,<i>,<spell>,<skill>,<rank>,<profession>,<recipe item>,<specialisation spell>,<era>
@@ -71,6 +72,7 @@
 
 #include "Journal.h"
 #include "AchievementMgr.h"
+#include "Config.h"
 #include "CreatureData.h"
 #include "DBCStores.h"
 #include "DisableMgr.h"
@@ -210,7 +212,7 @@ namespace Journal::Collections
             char kind = 'N';
             uint32 id = 0;
             uint32 a = 0;          // V copper, D/G/P/F/I chance x100, Q level, C skill, T class, S coins,
-                                   // B starting bid, U guild level
+                                   // B starting bid, U guild level, R 1 in this many kills (0 a loot table)
             uint32 b = 0;          // V honor, D/G instance, C rank, T level, Q faction, U reputation rank
             uint32 c = 0;          // V arena, D/G boss, T/U copper, D rare
             uint32 d = 0;          // T trainer count, U vendor count
@@ -1671,6 +1673,26 @@ namespace Journal::Collections
                 } while (result->NextRow());
         }
 
+        // mod-companion-auras: companions nothing else gives (obtainable = 0) drop from any creature,
+        // 1 in CompanionAuras.WorldDrop.Chance kills (its default 20000, 0 = off). Read when the
+        // module is installed (its table is there); module confs share the config manager.
+        void BuildCompanionWorldDrops()
+        {
+            if (!HasTable(WorldDatabase, "mod_companion_auras"))
+                return;
+            uint32 chance = sConfigMgr->GetOption<uint32>("CompanionAuras.WorldDrop.Chance", 20000, false);
+            if (!chance)
+                return;
+            if (QueryResult result = WorldDatabase.Query("SELECT item_entry FROM mod_companion_auras WHERE obtainable = 0"))
+                do
+                {
+                    Source src;
+                    src.kind = 'R';
+                    src.a = chance;
+                    AddSourceForItem(result->Fetch()[0].Get<uint32>(), src);
+                } while (result->NextRow());
+        }
+
         uint32 BitOf(char kind)
         {
             switch (kind)
@@ -1814,6 +1836,7 @@ namespace Journal::Collections
         BuildCrafted();
         BuildCoinShop();
         BuildNotes();
+        BuildCompanionWorldDrops();
 
         uint32 h = 2166136261u;
         std::array<std::size_t, KIND_COUNT> shown = {};
@@ -1924,7 +1947,7 @@ namespace Journal::Collections
                 case 'I':
                     return Acore::StringFormat("I,{},{},{}", i, s.id, s.a);
                 case 'R':
-                    return Acore::StringFormat("R,{}", i);
+                    return Acore::StringFormat("R,{},{}", i, s.a);
                 case 'Q':
                     return Acore::StringFormat("Q,{},{},{},{},{},{},{},{},{}", i, s.id, s.a, s.reqState, placed, s.b,
                         Escape(s.name, 48), Escape(s.extra, 30), Escape(s.where, 30));

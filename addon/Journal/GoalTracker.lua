@@ -142,7 +142,7 @@ local function progressText(s, live, g)
 		local money = GetMoney()
 		local color = money >= s.copper and "|cff66ff66" or "|cffffd200"
 		return color .. "Gold: " .. J.Money(math.min(money, s.copper)) .. " / " .. J.Money(s.copper) .. "|r"
-	elseif s.kind == "D" and (g.kills or 0) > 0 then
+	elseif (s.kind == "D" or (s.kind == "R" and (s.oneIn or 0) > 0)) and (g.kills or 0) > 0 then
 		return "Kills so far: " .. J.Number(g.kills)
 	end
 	return nil
@@ -186,18 +186,23 @@ end
 
 -- Creatures whose kills count toward the goal: every creature that drops it, by the entry it is
 -- spawned as (a heroic boss's loot is on its heroic template; its kills show the normal one).
+-- A mod-companion-auras world drop counts every kill (any creature can drop it).
 local killFor = {}
+local killAny = false
 local combat = CreateFrame("Frame")
 
 local function watchKills(list)
 	killFor = {}
+	killAny = false
 	for _, s in ipairs(list or {}) do
 		if s.kind == "D" and s.creature then
 			killFor[s.creature] = true
 			if s.base then killFor[s.base] = true end
+		elseif s.kind == "R" and (s.oneIn or 0) > 0 then
+			killAny = true
 		end
 	end
-	if next(killFor) then
+	if next(killFor) or killAny then
 		combat:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 	else
 		combat:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
@@ -213,7 +218,7 @@ combat:SetScript("OnEvent", function (self, event, _, subEvent, _, _, sourceFlag
 	if high ~= "F130" and high ~= "F150" then return end
 	local entry = tonumber(destGUID:sub(7, 12), 16)
 	local g = goal()
-	if g and entry and killFor[entry] then
+	if g and entry and (killAny or killFor[entry]) then
 		g.kills = (g.kills or 0) + 1
 		if frame then paint() end
 	end

@@ -211,7 +211,7 @@ local function instanceOverview(ctx)
 	local mine = serial
 
 	text(inst.name, GameFontNormalHuge, GOLD, 0, 2)
-	local minLevel, maxLevel, best = J.InstanceLevels(inst, J.view.tier)
+	local minLevel, maxLevel, best = J.TierLevels(inst, J.view.tier)
 	text((inst.raid and "Raid" or "Dungeon") .. " for level " .. (minLevel == maxLevel and minLevel or (minLevel .. "-" .. maxLevel))
 		.. (best and (", best at level " .. best) or ""), GameFontHighlight, GREY)
 

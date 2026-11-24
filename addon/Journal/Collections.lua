@@ -135,6 +135,9 @@ local function describe(s, live)
 		title = "Contained in: " .. (name or ("item " .. s.item))
 		detail = chance
 		icon = J.ItemIcon(s.item)
+	elseif s.kind == "R" and (s.oneIn or 0) > 0 then
+		title = "World drop (very rare)"
+		detail = "Any creature can drop it, about 1 in " .. J.Number(s.oneIn) .. " kills"
 	elseif s.kind == "R" then
 		title = "World drop"
 		detail = "Drops from many creatures around the world"
@@ -524,7 +527,8 @@ local function buildTab(kind, panel)
 				b.icon:SetTexture(J.EntryIcon(kind, e))
 				b.icon:SetDesaturated(not e.mine)
 				if CO then b.icon:SetAlpha(e.mine and 1 or 0.35) end
-				b.name:SetText(J.EntryName(kind, e) or ("item " .. e.id))
+				-- A pet's own name (mod-companion-auras); the row's tooltip still names the pet.
+				b.name:SetText((kind == "pets" and J.CompanionCustomName(e)) or J.EntryName(kind, e) or ("item " .. e.id))
 				if e.mine then
 					local r, g, bl = J.QualityColor(e.quality)
 					b.name:SetTextColor(r, g, bl)
@@ -633,9 +637,36 @@ local function buildTab(kind, panel)
 
 	local SOURCES_HEIGHT = 190
 
+	-- Pets (mod-companion-auras): the aura it gives while it's out, one line under the subtitle.
+	-- Hover for the spell's tooltip.
+	local auraLine
+	if kind == "pets" then
+		auraLine = CreateFrame("Button", nil, right)
+		auraLine:SetHeight(16)
+		auraLine:SetPoint("TOPLEFT", subtitle, "BOTTOMLEFT", 0, -4)
+		auraLine:SetPoint("RIGHT", right, "RIGHT", -12, 0)
+		auraLine.icon = auraLine:CreateTexture(nil, "ARTWORK")
+		auraLine.icon:SetSize(14, 14)
+		auraLine.icon:SetPoint("LEFT", auraLine, "LEFT", 0, 0)
+		auraLine.text = auraLine:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		auraLine.text:SetPoint("LEFT", auraLine.icon, "RIGHT", 4, 0)
+		auraLine.text:SetPoint("RIGHT", auraLine, "RIGHT", 0, 0)
+		auraLine.text:SetJustifyH("LEFT")
+		auraLine:SetScript("OnEnter", function (self)
+			if not self.spell then return end
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:SetHyperlink("spell:" .. self.spell)
+			GameTooltip:AddLine("While this companion is out." .. (self.rare and " A rare companion's is a little stronger." or ""),
+				0.6, 0.8, 1, true)
+			GameTooltip:Show()
+		end)
+		auraLine:SetScript("OnLeave", function () GameTooltip:Hide() end)
+		auraLine:Hide()
+	end
+
 	local model = CreateFrame("PlayerModel", nil, right)
-	-- Below the gold ornament's flourishes with DragonUI.
-	model:SetPoint("TOPLEFT", right, "TOPLEFT", 8, CO and -86 or -60)
+	-- Below the gold ornament's flourishes with DragonUI (and below the pets' aura line).
+	model:SetPoint("TOPLEFT", right, "TOPLEFT", 8, CO and -86 or (kind == "pets" and -76 or -60))
 	model:SetPoint("BOTTOMRIGHT", right, "BOTTOMRIGHT", -8, SOURCES_HEIGHT + 8)
 	model:SetScript("OnHide", function (self) self.shownEntry = nil end)
 	ModelViewLib.Wire(model, 0.5)
@@ -711,6 +742,43 @@ local function buildTab(kind, panel)
 		local can = e and not e.mine and band(e.flags, J.ENTRY.UNOBTAINABLE) == 0 and J.Usable(e)
 		setShown(goalButton, can)
 		if can then goalButton:SetText(J.GoalIs(kind, e) and "Stop tracking" or "Set as goal") end
+	end
+
+	-- Pets (mod-companion-auras): name one you have, or give it its normal name back.
+	local rename, resetName
+	local function syncRename()
+		if not rename then return end
+		local e = state.selected
+		local can = e and e.mine and J.CompanionAura(e) ~= nil
+		rename:SetFrameLevel(model:GetFrameLevel() + 1)
+		resetName:SetFrameLevel(model:GetFrameLevel() + 1)
+		setShown(rename, can)
+		setShown(resetName, can and J.CompanionCustomName(e) ~= nil)
+	end
+	if kind == "pets" then
+		rename = J.CreateButton(right, "Rename", 80, 22)
+		-- Top left of the model: the bottom holds the turn hint, Auto-summon and Summon.
+		rename:SetPoint("TOPLEFT", model, "TOPLEFT", 6, -6)
+		rename:SetScript("OnClick", function ()
+			local e = state.selected
+			if e then StaticPopup_Show("JOURNAL_RENAME_COMPANION", J.EntryName(kind, e) or "", nil, e) end
+		end)
+		J.SetTooltip(rename, function (tip)
+			tip:SetText("Rename", 1, 1, 1)
+			tip:AddLine("Give this companion its own name: one word, letters only, up to 12. "
+				.. "Everyone nearby sees it. (.petname does the same for the one you have out.)", 1, 0.82, 0, true)
+		end, "ANCHOR_TOP")
+		resetName = J.CreateButton(right, "Reset name", 90, 22)
+		resetName:SetPoint("LEFT", rename, "RIGHT", 4, 0)
+		resetName:SetScript("OnClick", function ()
+			if state.selected then J.RenameCompanion(state.selected, nil) end
+		end)
+		J.SetTooltip(resetName, function (tip)
+			tip:SetText("Reset name", 1, 1, 1)
+			tip:AddLine("Gives it its normal name back.", 1, 0.82, 0, true)
+		end, "ANCHOR_TOP")
+		rename:Hide()
+		resetName:Hide()
 	end
 
 	-- Pets: pick the one that comes out on its own, left of Summon.
@@ -922,11 +990,13 @@ local function buildTab(kind, panel)
 		setShown(right, e ~= nil)
 		if not e then syncUse() return end
 		local name = J.EntryName(kind, e) or ("item " .. e.id)
+		local custom = kind == "pets" and J.CompanionCustomName(e)
 		bigIcon:SetTexture(J.EntryIcon(kind, e))
-		title:SetText(name)
+		title:SetText(custom or name)
 		local r, g, b = J.QualityColor(e.quality)
 		title:SetTextColor(r, g, b)
 		local bits = {}
+		if custom then table.insert(bits, name) end
 		if kind == "mounts" then
 			local flying, scaling = band(e.flags, J.ENTRY.FLYING) ~= 0, band(e.flags, J.ENTRY.SCALING) ~= 0
 			table.insert(bits, scaling and "Ground and flying mount" or flying and "Flying mount" or "Mount")
@@ -948,6 +1018,22 @@ local function buildTab(kind, panel)
 		if kind == "pets" and J.autoSummon == e.id then table.insert(bits, "|cff66ccffAuto-summoned|r") end
 		if J.EntryLocked(e) then table.insert(bits, lockText(e.reqState)) end
 		subtitle:SetText(table.concat(bits, " - "))
+		if auraLine then
+			local spell, rare = J.CompanionAura(e)
+			local spellName, spellIcon
+			if spell then spellName, _, spellIcon = GetSpellInfo(spell) end
+			if spellName then
+				local desc = J.SpellDescription(spell)
+				auraLine.spell, auraLine.rare = spell, rare
+				auraLine.icon:SetTexture(spellIcon)
+				auraLine.text:SetText("|cffffd200" .. spellName .. "|r" .. (rare and " |cff0070ddRare|r" or "")
+					.. (desc and ("  " .. desc) or ""))
+				auraLine:Show()
+			else
+				auraLine.spell = nil
+				auraLine:Hide()
+			end
+		end
 
 		if kind == "toys" then
 			model:Hide()
@@ -983,6 +1069,7 @@ local function buildTab(kind, panel)
 			end
 		end
 		syncGoal()
+		syncRename()
 		if state.sourcesFor ~= e then
 			state.sourcesFor = e
 			renderSources(e)
@@ -1059,6 +1146,7 @@ local function buildTab(kind, panel)
 		J.Fire("COMPANIONS")
 		if kind == "toys" then J.RefreshToys() end
 		if kind == "pets" and J.autoSummon == nil then sendAutoSummon("G") end
+		if kind == "pets" and not J.HasCompanionAuras() then J.SyncCompanions() end
 		if state.catalog then render() return end
 		render()
 		J.LoadCatalog(kind, function (catalog)
@@ -1100,7 +1188,10 @@ local function buildTab(kind, panel)
 		if shown() then load() end
 	end)
 	J.On("LOCKOUTS_CHANGED", function () if shown() then render() end end)
-	if kind == "pets" then J.On("AUTO_SUMMON", function () if shown() then render() end end) end
+	if kind == "pets" then
+		J.On("AUTO_SUMMON", function () if shown() then render() end end)
+		J.On("COMPANION_AURAS", function () if shown() then render() end end)
+	end
 	J.On("GOAL_CHANGED", function () if shown() then syncGoal() end end)
 	-- The goal tracker and LearnedAlert's New Mount toast open the tab on one entry: show it,
 	-- whatever the search box held, scrolled into view.

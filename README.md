@@ -38,7 +38,7 @@ An [AzerothCore](https://www.azerothcore.org/) (WotLK 3.3.5a) module and addon t
   also shows each companion's **aura**, lets you **rename** your companions, and lists its very
   rare world drops.
 - Tabs from other addons: [mod-beast-collection](https://github.com/buildthehomelab/wow-mod-beast-collection)'s
-  hunter **Beasts** field guide and [mod-transmog-plus](https://github.com/buildthehomelab/wow-mod-transmog-plus)'s
+  hunter **Beasts** field guide and [mod-transmog-plus](https://github.com/EvilTactician/wow-mod-transmog-plus)'s
   **Appearances** show up here when they're installed.
 - Optional tabs from separate addons:
   - **Progression** ([JournalProgression](https://github.com/EvilTactician/JournalProgression)):
@@ -270,7 +270,7 @@ in the Filter menu brings them back. On the right, the one you picked:
 | World drop | drops from a shared world drop table; with [mod-companion-auras](https://github.com/EvilTactician/mod-companion-auras), "World drop (very rare)": any creature can drop it, about 1 in 20,000 kills (the module's `CompanionAuras.WorldDrop.Chance`) | |
 | Coin Shop | the price in boss coins ([mod-boss-coins](https://github.com/buildthehomelab/wow-mod-boss-coins), bought in the launcher) and how many you have, wallet and bags | |
 | Black Market | the broker ([mod-black-market](https://github.com/buildthehomelab/wow-mod-black-market)), where, the starting bid, and when it's up for bid now, the current bid and the time left | flag the broker |
-| Guild Vendor | the guild vendors ([mod-guild-levels](https://github.com/buildthehomelab/wow-mod-guild-levels)), the guild level and guild reputation it takes, the price | flag the nearest guild vendor of your faction |
+| Guild Vendor | the guild vendors ([mod-guild-levels](https://github.com/EvilTactician/wow-mod-guild-levels)), the guild level and guild reputation it takes, the price | flag the nearest guild vendor of your faction |
 
 Up to eight sources of each kind are listed, most likely or cheapest first; a last line counts the
 rest. A quest with a version per race or faction is one line: your faction's version, its giver and
@@ -508,7 +508,7 @@ can't find in the zone (`lore entry ...: no area "..." in zone ...`) and any ent
 Server:
 ```
 cd azerothcore-wotlk/modules
-git clone https://github.com/buildthehomelab/wow-mod-forever-journal.git mod-forever-journal
+git clone https://github.com/EvilTactician/wow-mod-forever-journal.git mod-forever-journal
 ```
 Re-run CMake, rebuild, and copy `conf/mod_forever_journal.conf.dist` next to your
 `worldserver.conf`. The SQL in `data/sql/db-world` and `data/sql/db-characters` is applied by the
@@ -708,7 +708,7 @@ another addon, and DragonUI's Pets & Mounts button.
 
 ## Credits
 
-Author: [buildthehomelab](https://github.com/buildthehomelab)
+Original Author: [buildthehomelab](https://github.com/buildthehomelab)
 
 ## License
 
